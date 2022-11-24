@@ -117,6 +117,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cortex-m-semihosting"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bffa6c1454368a6aa4811ae60964c38e6996d397ff8095a8b9211b1c1f749bc"
+dependencies = [
+ "cortex-m 0.7.6",
+]
+
+[[package]]
 name = "embedded-dma"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -275,6 +284,7 @@ dependencies = [
  "cfg-if 0.1.10",
  "cortex-m 0.6.7",
  "cortex-m-rt",
+ "cortex-m-semihosting",
  "embedded-hal",
  "log",
  "panic-halt",
