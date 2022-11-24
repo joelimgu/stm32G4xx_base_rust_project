@@ -1,0 +1,19 @@
+[package]
+name = "stm32G4xx_base-rust_project"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cortex-m-rt = "0.7"
+cortex-m = "0.6.2"
+embedded-hal = "0.2.7"
+panic-halt = "0.2.0"
+log = "0.4.11"
+cfg-if = "0.1.10"
+
+
+[dependencies.stm32g4xx-hal]
+git = "https://github.com/stm32-rs/stm32g4xx-hal.git"
+features = ["stm32g431"]
