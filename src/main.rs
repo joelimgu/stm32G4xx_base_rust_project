@@ -22,6 +22,7 @@ use core::num::{NonZeroU16, NonZeroU8};
 use cortex_m_rt::entry;
 
 use log::info;
+use stm32g4xx_hal::fdcan::id::Id;
 
 use cortex_m_semihosting::hprintln;
 
@@ -106,23 +107,22 @@ fn main() -> ! {
         .unwrap();
 
     loop {
-        if let Ok(rxheader) = block!(can.receive0(&mut |h, b| {
-            info!("Received Header: {:#X?}", &h);
-            info!("received data: {:X?}", &b);
 
-            for (i, d) in b.iter().enumerate() {
-                buffer[i] = *d;
-            }
-            h
-        })) {
-            block!(
-                can.transmit(rxheader.unwrap().to_tx_header(None), &mut |b| {
-                    let len = b.len();
-                    b[..len].clone_from_slice(&buffer[..len]);
-                    info!("Transmit: {:X?}", b);
-                })
-            )
-                .unwrap();
-        }
+        let txheader : TxFrameHeader = TxFrameHeader {
+            len: 8,
+            frame_format : FrameFormat::Standard,
+            id : Id::Standard(StandardId::new(0).unwrap()),
+            bit_rate_switching : false,
+            marker : None
+        };
+
+
+        block!(
+            can.transmit(txheader, &mut |b| {
+                let len = b.len();
+                b[..len].clone_from_slice(&buffer[..len]);
+                hprintln!("Transmit: {:X?}", b);
+            })
+        ).unwrap();
     }
 }
