@@ -55,12 +55,12 @@ fn main() -> ! {
 
     info!("Split GPIO");
 
-    let gpiob = dp.GPIOB.split(&mut rcc);
+    let gpioa = dp.GPIOA.split(&mut rcc);
 
     let can1 = {
         info!("Init CAN 1");
-        let rx = gpiob.pb8.into_alternate().set_speed(Speed::VeryHigh);
-        let tx = gpiob.pb9.into_alternate().set_speed(Speed::VeryHigh);
+        let rx = gpioa.pa11.into_alternate().set_speed(Speed::VeryHigh);
+        let tx = gpioa.pa12.into_alternate().set_speed(Speed::VeryHigh);
 
         info!("-- Create CAN 1 instance");
         let can = FdCan::new(dp.FDCAN1, tx, rx, &rcc);
