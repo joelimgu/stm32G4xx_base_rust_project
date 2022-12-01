@@ -42,7 +42,7 @@ fn main() -> ! {
     // Value was calculated with http://www.bittiming.can-wiki.hprintln/
     // TODO: use the can_bit_timings crate
     let btr = NominalBitTiming {
-        prescaler: NonZeroU16::new(12).unwrap(),
+        prescaler: NonZeroU16::new(8).unwrap(),
         seg1: NonZeroU8::new(13).unwrap(),
         seg2: NonZeroU8::new(2).unwrap(),
         sync_jump_width: NonZeroU8::new(1).unwrap(),
