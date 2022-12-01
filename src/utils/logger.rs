@@ -17,7 +17,7 @@ cfg_if::cfg_if! {
 
         lazy_static! {
             static ref LOGGER: Logger<ItmSync<InterruptFree>> = Logger {
-                level: LevelFilter::Info,
+                level: LevelFilter::hprintln,
                 inner: unsafe {
                     InterruptSync::new(
                         // We must not use Peripherals::steal() here to get an ITM instance, as the
@@ -44,12 +44,12 @@ cfg_if::cfg_if! {
         }
 
         static LOGGER: Logger = Logger {
-            level: Level::Info,
+            level: Level::hprintln,
         };
 
         pub fn init() {
             rtt_init_print!();
-            log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info)).unwrap();
+            log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::hprintln)).unwrap();
         }
 
         impl log::Log for Logger {
@@ -79,7 +79,7 @@ cfg_if::cfg_if! {
 
         lazy_static! {
             static ref LOGGER: Logger<Semihosting<InterruptOk, HStdout>> = Logger {
-                level: LevelFilter::Info,
+                level: LevelFilter::hprintln,
                 inner: semihosting::InterruptOk::<_>::stdout().expect("Get Semihosting stdout"),
             };
         }
