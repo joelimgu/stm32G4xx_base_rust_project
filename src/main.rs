@@ -24,6 +24,8 @@ use cortex_m_rt::entry;
 //use log::hprintln;
 
 use cortex_m_semihosting::hprintln;
+use stm32g4xx_hal::fdcan::config::GlobalFilter;
+use stm32g4xx_hal::fdcan::filter::{Action, Filter, FilterType};
 
 
 #[macro_use]
@@ -42,7 +44,7 @@ fn main() -> ! {
         prescaler: NonZeroU16::new(8).unwrap(),
         seg1: NonZeroU8::new(13).unwrap(),
         seg2: NonZeroU8::new(2).unwrap(),
-        sync_jump_width: NonZeroU8::new(16).unwrap(),
+        sync_jump_width: NonZeroU8::new(1).unwrap(),
     };
 
     hprintln!("Init Clocks");
@@ -71,13 +73,22 @@ fn main() -> ! {
         //hprintln!("-- Configure nominal timing");
         can.set_nominal_bit_timing(btr);
 
+        global_filter =
+
+        can.set_global_filter(GlobalFilter::reject_all());
+
+        let filtre = StandardFilter {
+            filter: FilterType::DedicatedSingle(StandardId::new(4).unwrap()),
+            action: Action::StoreInFifo0,
+        };
+
         //hprintln!("-- Configure Filters");
         can.set_standard_filter(
             StandardFilterSlot::_0,
-            StandardFilter::accept_all_into_fifo0(),
+            filtre,
         );
 
-        //hprintln!("-- Current Config: {:#?}", can.get_config());
+        hprintln!("-- Current Config: {:#?}", can.get_config());
 
       //  hprintln!("-- Set CAN1 in to normal mode");
         // can.into_external_loopback()
@@ -89,21 +100,21 @@ fn main() -> ! {
     //hprintln!("Create Message Data");
     let mut buffer = [0xAAAAAAAA, 0xFFFFFFFF, 0x0, 0x0, 0x0, 0x0];
     //hprintln!("Create Message Header");
-    let header = TxFrameHeader {
-        len: 2 * 4,
-        id: StandardId::new(0x1).unwrap().into(),
-        frame_format: FrameFormat::Standard,
-        bit_rate_switching: false,
-        marker: None,
-    };
+    // let header = TxFrameHeader {
+    //     len: 2 * 4,
+    //     id: StandardId::new(0x1).unwrap().into(),
+    //     frame_format: FrameFormat::Standard,
+    //     bit_rate_switching: false,
+    //     marker: None,
+    // };
     //hprintln!("Initial Header: {:#X?}", &header);
 
     //hprintln!("Transmit initial message");
-    block!(can.transmit(header, &mut |b| {
-        let len = b.len();
-        b[..len].clone_from_slice(&buffer[..len]);
-    },))
-        .unwrap();
+    // block!(can.transmit(header, &mut |b| {
+    //     let len = b.len();
+    //     b[..len].clone_from_slice(&buffer[..len]);
+    // },))
+    //     .unwrap();
 
     loop {
         if let Ok(rxheader) = block!(can.receive0(&mut |h, b| {
