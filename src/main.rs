@@ -115,18 +115,18 @@ fn main() -> ! {
         let txheader : TxFrameHeader = TxFrameHeader {
             len: 8,
             frame_format : FrameFormat::Standard,
-            id : Id::Standard(StandardId::new(0).unwrap()),
+            id : Id::Standard(StandardId::new(5).unwrap()),
             bit_rate_switching : false,
             marker : None
         };
 
-        hprintln!("In");
+        //hprintln!("In");
 
         block!(
             can.transmit(txheader, &mut |b| {
                 let len = b.len();
                 b[..len].clone_from_slice(&buffer[..len]);
-                hprintln!("Transmit: {:X?}", b);
+                //hprintln!("Transmit: {:X?}", b);
             })
         ).unwrap();
 
