@@ -16,15 +16,16 @@ use crate::hal::{
     time::U32Ext,
 };
 use stm32g4xx_hal as hal;
-
+use hal::prelude::*;
 use core::num::{NonZeroU16, NonZeroU8};
 
 use cortex_m_rt::entry;
 
 //use log::hprintln;
+use panic_halt as _;
 
 use cortex_m_semihosting::hprintln;
-use stm32g4xx_hal::fdcan::config::GlobalFilter;
+use stm32g4xx_hal::fdcan::config::{ClockDivider, DataBitTiming, FdCanConfig, FrameTransmissionConfig, GlobalFilter, Interrupts, TimestampSource};
 use stm32g4xx_hal::fdcan::filter::{Action, Filter, FilterType};
 
 
@@ -67,15 +68,36 @@ fn main() -> ! {
         let can = FdCan::new(dp.FDCAN1, tx, rx, &rcc);
 
         //hprintln!("-- Set CAN 1 in Config Mode");
+
         let mut can = can.into_config_mode();
-        can.set_protocol_exception_handling(false);
+
+        let configCAN = FdCanConfig {
+            nbtr: btr,
+            dbtr: DataBitTiming::default(),
+            automatic_retransmit: true,
+            transmit_pause: true,
+            frame_transmit: FrameTransmissionConfig::ClassicCanOnly,
+            non_iso_mode: false,
+            edge_filtering: false,
+            protocol_exception_handling: false,
+            clock_divider: ClockDivider::_1,
+            interrupt_line_config: Interrupts::none(),
+            timestamp_source: TimestampSource::None,
+            global_filter: GlobalFilter::reject_all(),
+        };
+
+        //can.set_protocol_exception_handling(false);
+        //can.set_non_iso_mode(false);
 
         //hprintln!("-- Configure nominal timing");
-        can.set_nominal_bit_timing(btr);
+        //can.set_nominal_bit_timing(btr);
 
-        global_filter =
 
-        can.set_global_filter(GlobalFilter::reject_all());
+       // global_filter =
+
+        //can.set_global_filter(GlobalFilter::reject_all());
+
+        can.apply_config(configCAN);
 
         let filtre = StandardFilter {
             filter: FilterType::DedicatedSingle(StandardId::new(4).unwrap()),
