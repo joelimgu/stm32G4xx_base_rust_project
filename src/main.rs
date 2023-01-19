@@ -36,9 +36,9 @@ mod utils;
 fn main() -> ! {
     utils::logger::init();
 
-    //hprintln!("Start");
+    hprintln!("Start");
 
-    // APB1 (HSE): 24MHz, Bit rate: 125kBit/s, Sample Point 87.5%
+    // APB1 (HSI): 16MHz, Bit rate: 125kBit/s, Sample Point 87.5%
     // Value was calculated with http://www.bittiming.can-wiki.hprintln/
     // TODO: use the can_bit_timings crate
     let btr = NominalBitTiming {
@@ -48,14 +48,14 @@ fn main() -> ! {
         sync_jump_width: NonZeroU8::new(1).unwrap(),
     };
 
-    //hprintln!("Init Clocks");
+    hprintln!("Init Clocks");
 
     let dp = Peripherals::take().unwrap();
     let _cp = cortex_m::Peripherals::take().expect("cannot take core peripherals");
     let rcc = dp.RCC.constrain();
     let mut rcc = rcc.freeze(Config::new(SysClockSrc::HSI));
 
-    //hprintln!("Split GPIO");
+    hprintln!("Split GPIO");
 
     let gpioa = dp.GPIOA.split(&mut rcc);
 
@@ -93,7 +93,7 @@ fn main() -> ! {
         //can.set_nominal_bit_timing(btr);
 
 
-       // global_filter =
+        // global_filter =
 
         //can.set_global_filter(GlobalFilter::reject_all());
 
@@ -110,37 +110,36 @@ fn main() -> ! {
             filtre,
         );
 
-        //hprintln!("-- Current Config: {:#?}", can.get_config());
+        hprintln!("-- Current Config: {:#?}", can.get_config());
 
-        //hprintln!("-- Set CAN1 in to normal mode");
+        //  hprintln!("-- Set CAN1 in to normal mode");
         // can.into_external_loopback()
         can.into_normal()
     };
 
     let mut can = can1;
 
-    //hprintln!("Create Message Data");
     let mut buffer = [0xAAAAAAAA, 0xFFFFFFFF, 0x0, 0x0, 0x0, 0x0];
-    //hprintln!("Create Message Header");
-    let header = TxFrameHeader {
-        len: 2 * 4,
-        id: StandardId::new(0x1).unwrap().into(),
-        frame_format: FrameFormat::Standard,
-        bit_rate_switching: false,
-        marker: None,
-    };
-    //hprintln!("Initial Header: {:#X?}", &header);
-
-    //hprintln!("Transmit initial message");
-
     let mut delay = _cp.SYST.delay(&rcc.clocks);
 
     loop {
 
+        let header = TxFrameHeader {
+            len: 2 * 4,
+            id: StandardId::new(0x1).unwrap().into(),
+            frame_format: FrameFormat::Standard,
+            bit_rate_switching: false,
+            marker: None,
+        };
+        //hprintln!("Initial Header: {:#X?}", &header);
+
+        //hprintln!("Transmit initial message");
         block!(can.transmit(header, &mut |b| {
             let len = b.len();
             b[..len].clone_from_slice(&buffer[..len]);
-        },)).unwrap();
+        },))
+            .unwrap();
+
         delay.delay_ms(100);
 
         // if let Ok(rxheader) = block!(can.receive0(&mut |h, b| {
