@@ -83,7 +83,7 @@ fn main() -> ! {
             clock_divider: ClockDivider::_1,
             interrupt_line_config: Interrupts::none(),
             timestamp_source: TimestampSource::None,
-            global_filter: GlobalFilter::reject_all(),
+            global_filter: GlobalFilter::default(),
         };
 
         //can.set_protocol_exception_handling(false);
@@ -110,7 +110,7 @@ fn main() -> ! {
             filtre,
         );
 
-        hprintln!("-- Current Config: {:#?}", can.get_config());
+        // hprintln!("-- Current Config: {:#?}", can.get_config());
 
       //  hprintln!("-- Set CAN1 in to normal mode");
         // can.into_external_loopback()
@@ -140,9 +140,22 @@ fn main() -> ! {
 
     loop {
         if let Ok(rxheader) = block!(can.receive0(&mut |h, b| {
-            hprintln!("Received Header: {:#X?}", &h);
-            hprintln!("received data: {:X?}", &b);
-
+            // hprintln!("Received Header: {:#X?}", &h);
+            // hprintln!("received data: {:X?}", &b);
+            let id = *&b as *const _;
+            let ptr = id as *const () as usize;
+            let header = ptr - 2*4; // two times the register size(4 bytes)
+            let ptr2 = header as *const u32;
+            // buena suerte
+            let id2 = unsafe { *(header as *const u32) };
+            // equivalent to 00011111111111000000000000000000
+            // i.e the first 11 bits of the ID as we only want the standard ID
+            // pag 1961 of rm0440-stm32
+            let m_id = (id2 & 0x1FFC0000) >> 18;
+            // unsafe {
+            //     hprintln!("ID: {}", *((0x4000A400+0x00B0_u32).as_ptr()));
+            // }
+            // buffer[-2]
             for (i, d) in b.iter().enumerate() {
                 buffer[i] = *d;
             }
