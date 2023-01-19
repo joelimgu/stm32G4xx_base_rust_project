@@ -16,17 +16,17 @@ use crate::hal::{
     time::U32Ext,
 };
 use stm32g4xx_hal as hal;
-
+use hal::prelude::*;
 use core::num::{NonZeroU16, NonZeroU8};
 
 use cortex_m_rt::entry;
 
 //use log::hprintln;
-use stm32g4xx_hal::fdcan::id::Id;
+use panic_halt as _;
 
 use cortex_m_semihosting::hprintln;
-use stm32g4xx_hal::delay::SYSTDelayExt;
-use stm32g4xx_hal::time::Hertz;
+use stm32g4xx_hal::fdcan::config::{ClockDivider, DataBitTiming, FdCanConfig, FrameTransmissionConfig, GlobalFilter, Interrupts, TimestampSource};
+use stm32g4xx_hal::fdcan::filter::{Action, Filter, FilterType};
 
 
 #[macro_use]
@@ -68,16 +68,46 @@ fn main() -> ! {
         let can = FdCan::new(dp.FDCAN1, tx, rx, &rcc);
 
         //hprintln!("-- Set CAN 1 in Config Mode");
+
         let mut can = can.into_config_mode();
-        can.set_protocol_exception_handling(false);
+
+        let configCAN = FdCanConfig {
+            nbtr: btr,
+            dbtr: DataBitTiming::default(),
+            automatic_retransmit: true,
+            transmit_pause: true,
+            frame_transmit: FrameTransmissionConfig::ClassicCanOnly,
+            non_iso_mode: false,
+            edge_filtering: false,
+            protocol_exception_handling: false,
+            clock_divider: ClockDivider::_1,
+            interrupt_line_config: Interrupts::none(),
+            timestamp_source: TimestampSource::None,
+            global_filter: GlobalFilter::reject_all(),
+        };
+
+        //can.set_protocol_exception_handling(false);
+        //can.set_non_iso_mode(false);
 
         //hprintln!("-- Configure nominal timing");
-        can.set_nominal_bit_timing(btr);
+        //can.set_nominal_bit_timing(btr);
+
+
+       // global_filter =
+
+        //can.set_global_filter(GlobalFilter::reject_all());
+
+        can.apply_config(configCAN);
+
+        let filtre = StandardFilter {
+            filter: FilterType::DedicatedSingle(StandardId::new(4).unwrap()),
+            action: Action::StoreInFifo0,
+        };
 
         //hprintln!("-- Configure Filters");
         can.set_standard_filter(
             StandardFilterSlot::_0,
-            StandardFilter::accept_all_into_fifo0(),
+            filtre,
         );
 
         //hprintln!("-- Current Config: {:#?}", can.get_config());
@@ -102,34 +132,34 @@ fn main() -> ! {
     //hprintln!("Initial Header: {:#X?}", &header);
 
     //hprintln!("Transmit initial message");
-    block!(can.transmit(header, &mut |b| {
-        let len = b.len();
-        b[..len].clone_from_slice(&buffer[..len]);
-    },))
-        .unwrap();
 
     let mut delay = _cp.SYST.delay(&rcc.clocks);
 
     loop {
 
-        let txheader : TxFrameHeader = TxFrameHeader {
-            len: 8,
-            frame_format : FrameFormat::Standard,
-            id : Id::Standard(StandardId::new(5).unwrap()),
-            bit_rate_switching : false,
-            marker : None
-        };
+        block!(can.transmit(header, &mut |b| {
+            let len = b.len();
+            b[..len].clone_from_slice(&buffer[..len]);
+        },)).unwrap();
+        delay.delay_ms(100);
 
-        //hprintln!("In");
-
-        block!(
-            can.transmit(txheader, &mut |b| {
-                let len = b.len();
-                b[..len].clone_from_slice(&buffer[..len]);
-                //hprintln!("Transmit: {:X?}", b);
-            })
-        ).unwrap();
-
-        delay.delay_ms(100_u32);
+        // if let Ok(rxheader) = block!(can.receive0(&mut |h, b| {
+        //     hprintln!("Received Header: {:#X?}", &h);
+        //     hprintln!("received data: {:X?}", &b);
+        //
+        //     for (i, d) in b.iter().enumerate() {
+        //         buffer[i] = *d;
+        //     }
+        //     h
+        // })) {
+        //     block!(
+        //         can.transmit(rxheader.unwrap().to_tx_header(None), &mut |b| {
+        //             let len = b.len();
+        //             b[..len].clone_from_slice(&buffer[..len]);
+        //             hprintln!("Transmit: {:X?}", b);
+        //         })
+        //     )
+        //         .unwrap();
+        // }
     }
 }
