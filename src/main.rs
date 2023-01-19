@@ -32,6 +32,22 @@ use stm32g4xx_hal::fdcan::filter::{Action, Filter, FilterType};
 #[macro_use]
 mod utils;
 
+
+unsafe fn get_can_id_from_buff(b: &&[u32]) -> u32 {
+    let b = *b;
+    let id = *&b as *const _;
+    let ptr = id as *const () as usize;
+    let header = ptr - 2*4; // two times the register size(4 bytes)
+    let ptr2 = header as *const u32;
+    // buena suerte
+    let id2 = unsafe { *(header as *const u32) };
+    // equivalent to 00011111111111000000000000000000
+    // i.e the first 11 bits of the ID as we only want the standard ID
+    // pag 1961 of rm0440-stm32
+    let m_id = (id2 & 0x1FFC0000) >> 18;
+    m_id
+}
+
 #[entry]
 fn main() -> ! {
     utils::logger::init();
@@ -137,21 +153,12 @@ fn main() -> ! {
     //     b[..len].clone_from_slice(&buffer[..len]);
     // },))
     //     .unwrap();
+    if let Ok(rxheader) = block!(can.receive0(&mut |h, b| {
+            unsafe {
+                hprintln!("Received ID: {:#X?}", get_can_id_from_buff(&b));
+            }
+            hprintln!("received data: {:X?}", &b);
 
-    loop {
-        if let Ok(rxheader) = block!(can.receive0(&mut |h, b| {
-            // hprintln!("Received Header: {:#X?}", &h);
-            // hprintln!("received data: {:X?}", &b);
-            let id = *&b as *const _;
-            let ptr = id as *const () as usize;
-            let header = ptr - 2*4; // two times the register size(4 bytes)
-            let ptr2 = header as *const u32;
-            // buena suerte
-            let id2 = unsafe { *(header as *const u32) };
-            // equivalent to 00011111111111000000000000000000
-            // i.e the first 11 bits of the ID as we only want the standard ID
-            // pag 1961 of rm0440-stm32
-            let m_id = (id2 & 0x1FFC0000) >> 18;
             // unsafe {
             //     hprintln!("ID: {}", *((0x4000A400+0x00B0_u32).as_ptr()));
             // }
@@ -161,14 +168,16 @@ fn main() -> ! {
             }
             h
         })) {
-            block!(
+        block!(
                 can.transmit(rxheader.unwrap().to_tx_header(None), &mut |b| {
                     let len = b.len();
                     b[..len].clone_from_slice(&buffer[..len]);
                     hprintln!("Transmit: {:X?}", b);
                 })
             )
-                .unwrap();
-        }
+            .unwrap();
+    }
+
+    loop {
     }
 }
