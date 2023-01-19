@@ -77,6 +77,18 @@ fn main() -> ! {
         dp.TIM1.cr1.write(|w| unsafe {
             w.opm().bit(true)
         });
+        dp.TIM1.ccmr1_output().write(|w| unsafe {
+            w.cc2s().bits(01)
+        });
+        dp.TIM1.ccer.write(|w| unsafe {
+            w.cc2p().bit(false)
+                .cc2np().bit(false)
+        });
+        dp.TIM1.smcr.write(|w|unsafe{
+            w.ts()
+                .bits(00110)
+                .sms().bits(110)
+        });
 
         //dp.TIM1.ARR.write(w| unsafe {
         //             w.opm().bit(true)
