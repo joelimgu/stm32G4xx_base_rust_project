@@ -18,6 +18,9 @@ use log::info;
 use hal::gpio::gpioa::PA8;
 use hal::gpio::Alternate;
 use hal::gpio::AF6;
+use stm32g4xx_hal::cortex_m::asm::delay;
+use stm32g4xx_hal::stm32::TIM1;
+use stm32g4xx_hal::stm32g4::stm32g431;
 
 
 extern crate cortex_m_rt as rt;
@@ -70,10 +73,22 @@ fn main() -> ! {
     let gpioa = dp.GPIOA.split(&mut rcc);
     let pin: PA8<Alternate<AF6>> = gpioa.pa8.into_alternate();
 
+    unsafe {
+        dp.TIM1.cr1.write(|w| unsafe {
+            w.opm().bit(true)
+        });
+
+        //dp.TIM1.ARR.write(w| unsafe {
+        //             w.opm().bit(true)
+    }
+
     let mut pwm = dp.TIM1.pwm(pin, 50.khz(), &mut rcc);
 
     pwm.set_duty(pwm.get_max_duty() / 2);
     pwm.enable();
+
+
+
 
     loop {
         cortex_m::asm::nop()
