@@ -7,13 +7,13 @@ edition = "2021"
 
 [dependencies]
 cortex-m-rt = "0.7"
-cortex-m = "0.6.2"
-cortex-m-semihosting = "0.3.3"
+cortex-m = "0.7.7"
+cortex-m-semihosting = "0.5.0"
 embedded-hal = "0.2.7"
 panic-halt = "0.2.0"
 log = "0.4.11"
-cfg-if = "0.1.10"
-
+cfg-if = "1.0.0"
+drs-0x01 = "0.3.0"
 
 [dependencies.stm32g4xx-hal]
 git = "https://github.com/stm32-rs/stm32g4xx-hal.git"
