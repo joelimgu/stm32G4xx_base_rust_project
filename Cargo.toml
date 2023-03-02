@@ -16,6 +16,6 @@ cfg-if = "0.1.10"
 
 [dependencies.stm32g4xx-hal]
 git = "https://github.com/stm32-rs/stm32g4xx-hal.git"
-features = ["stm32g431"]
+features = ["stm32g431", ]
 
 

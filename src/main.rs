@@ -1,109 +1,86 @@
 #![no_main]
 #![no_std]
 
-use hal::delay::DelayFromCountDownTimer;
-use hal::prelude::*;
-use hal::rcc::Config;
-use hal::stm32;
-use hal::timer::Timer;
-use stm32g4xx_hal as hal;
-use cortex_m_semihosting::hprintln;
+
+use core::borrow::BorrowMut;
+use stm32g4xx_hal::{gpio::{gpioc, ExtiPin, GpioExt, Input, PullDown, SignalEdge}, rcc::RccExt, stm32, stm32::{interrupt, Interrupt}, stm32g4, syscfg::SysCfgExt};
+
+use core::cell::RefCell;
+use core::sync::atomic::{AtomicBool, Ordering};
+use cortex_m::{asm::wfi, interrupt::Mutex};
 
 use cortex_m_rt::entry;
-use log::info;
+use embedded_hal::digital::v2::OutputPin;
+use stm32g4xx_hal::gpio::gpioa::{PA5, PA9};
+use stm32g4xx_hal::gpio::{Output, PushPull};
+use stm32g4xx_hal::time::U32Ext;
 
+use stm32g4xx_hal::timer::{Event, Timer};
+use panic_halt as _;
+use stm32g4xx_hal::stm32::NVIC;
 
-// pwm
+type ButtonPin = gpioc::PC13<Input<PullDown>>;
 
-use hal::gpio::gpioa::PA8;
-use hal::gpio::Alternate;
-use hal::gpio::AF6;
-use stm32g4xx_hal::cortex_m::asm::delay;
-use stm32g4xx_hal::stm32::TIM1;
-use stm32g4xx_hal::stm32g4::stm32g431;
+// Make LED pin globally available
+static G_BUTTON: Mutex<RefCell<Option<ButtonPin>>> = Mutex::new(RefCell::new(None));
+static G_LED_ON: AtomicBool = AtomicBool::new(true);
 
+// Define an interupt handler, i.e. function to call when interrupt occurs.
+// This specific interrupt will "trip" when the button is pressed
 
-extern crate cortex_m_rt as rt;
+unsafe fn clear_tim2interrupt_bit() {
+    (*stm32g4::stm32g431::TIM2::ptr())
+        .sr
+        .write(|w| w.uif().clear_bit());
 
+}
+static LED: Mutex<RefCell<Option<PA9<Output<PushPull>>>>> = Mutex::new(RefCell::new(None));
+#[interrupt]
+fn TIM2() {
+    cortex_m::interrupt::free(|cs| {
+        let mut option = LED.borrow(&cs).borrow_mut().take();
+        match option {
+            None => {}
+            Some(mut led) => {
+                led.set_low().unwrap();
+            }
+        }
 
-
-
-
-#[macro_use]
-mod utils;
-
-//#[entry]
-//fn main() -> ! {
-//    utils::logger::init();
-
-  //  hprintln!("start");
-   // let dp = stm32::Peripherals::take().expect("cannot take peripherals");
-   // let cp = cortex_m::Peripherals::take().expect("cannot take core peripherals");
-   // let mut rcc = dp.RCC.freeze(Config::hsi());
-
-    //hprintln!("Init Led");
-    //let gpioa = dp.GPIOA.split(&mut rcc);
-    //let mut led = gpioa.pa5.into_push_pull_output();
-
-    //hprintln!("Init SYST delay");
-    //let mut delay_syst = cp.SYST.delay(&rcc.clocks);
-
-    //hprintln!("Init Timer2 delay");
-    //let timer2 = Timer::new(dp.TIM2, &rcc.clocks);
-    //let mut delay_tim2 = DelayFromCountDownTimer::new(timer2.start_count_down(100.ms()));
-
-    //loop {
-
-        //led.set_low();
-        //hprintln!("Toggle");
-        //led.toggle().unwrap();
-        //hprintln!("SYST delay");
-        //elay_syst.delay(1000.ms());
-        //hprintln!("Toggle");
-        //led.toggle().unwrap();
-        //hprintln!("TIM2 delay");
-        //delay_tim2.delay_ms(1000_u16);
-    //}
-//}
-
-#[entry]
+    });
+     unsafe { clear_tim2interrupt_bit() }
+}
+        #[entry]
 fn main() -> ! {
-    let dp = stm32::Peripherals::take().expect("cannot take peripherals");
+    let mut dp = stm32::Peripherals::take().expect("cannot take peripherals");
     let mut rcc = dp.RCC.constrain();
+    let mut syscfg = dp.SYSCFG.constrain();
+
+    // Configure PA5 pin to blink LED
     let gpioa = dp.GPIOA.split(&mut rcc);
-    let pin: PA8<Alternate<AF6>> = gpioa.pa8.into_alternate();
-
-    unsafe {
-        dp.TIM1.cr1.write(|w| unsafe {
-            w.opm().bit(true)
-        });
-        dp.TIM1.ccmr1_output().write(|w| unsafe {
-            w.cc2s().bits(01)
-        });
-        dp.TIM1.ccer.write(|w| unsafe {
-            w.cc2p().bit(false)
-                .cc2np().bit(false)
-        });
-        dp.TIM1.smcr.write(|w|unsafe{
-            w.ts()
-                .bits(00110)
-                .sms().bits(110)
-        });
-
-        //dp.TIM1.ARR.write(w| unsafe {
-        //             w.opm().bit(true)
-    }
-
-    let mut pwm = dp.TIM1.pwm(pin, 50.khz(), &mut rcc);
-
-    pwm.set_duty(pwm.get_max_duty() / 2);
-    pwm.enable();
+    let mut led = gpioa.pa9.into_push_pull_output();
+    led.set_high().unwrap();
+    cortex_m::interrupt::free(|cs| unsafe {
+        LED
+        .borrow(&cs)
+        .replace(Some(led));
+    });
 
 
+            let mut tim2 = Timer::new(dp.TIM2, &rcc.clocks).start_count_down(1.hz());
+            tim2.listen(Event::TimeOut);
+            tim2.release();
+            unsafe{NVIC::unmask(Interrupt::TIM2)}
+    // Move the pin into our global storage
 
+    //let mut delay = cp.SYST.delay(&rcc.clocks);
 
     loop {
-        cortex_m::asm::nop()
+        // wfi();
+        //
+        // if G_LED_ON.load(Ordering::Relaxed) {
+        //     led.set_high().unwrap();
+        // } else {
+        //     led.set_low().unwrap();
+        // }
     }
 }
-
