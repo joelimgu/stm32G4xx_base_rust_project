@@ -12,17 +12,17 @@ use cortex_m::{asm::wfi, interrupt::Mutex};
 use cortex_m_rt::entry;
 use embedded_hal::digital::v2::OutputPin;
 use stm32g4xx_hal::gpio::gpioa::{PA5, PA9};
-use stm32g4xx_hal::gpio::{Output, PushPull};
+use stm32g4xx_hal::gpio::{Alternate, Output, PushPull};
 use stm32g4xx_hal::time::U32Ext;
 
 use stm32g4xx_hal::timer::{Event, Timer};
 use panic_halt as _;
-use stm32g4xx_hal::stm32::NVIC;
+use stm32g4xx_hal::gpio::gpiob::PB5;
+use stm32g4xx_hal::stm32::{NVIC, TIM3};
 
-type ButtonPin = gpioc::PC13<Input<PullDown>>;
+
 
 // Make LED pin globally available
-static G_BUTTON: Mutex<RefCell<Option<ButtonPin>>> = Mutex::new(RefCell::new(None));
 static G_LED_ON: AtomicBool = AtomicBool::new(true);
 
 // Define an interupt handler, i.e. function to call when interrupt occurs.
@@ -49,15 +49,32 @@ fn TIM2() {
     });
      unsafe { clear_tim2interrupt_bit() }
 }
+
+
         #[entry]
 fn main() -> ! {
     let mut dp = stm32::Peripherals::take().expect("cannot take peripherals");
     let mut rcc = dp.RCC.constrain();
     let mut syscfg = dp.SYSCFG.constrain();
 
+    unsafe {
+        dp.TIM3.smcr.write(|w| {
+            w.sms().bits(101)
+                .ts().bits(00101)
+        });
+        dp.TIM3.ccmr1_input().write(|w| w.cc1s().bits(01));
+        dp.TIM3.ccer.write(|w| {
+            w.cc1p().bit(true)
+                .cc1np().bit(false)
+        });
+        dp.TIM3.cr1.write(|w| w.cen().bit(true));
+    }
+
     // Configure PA5 pin to blink LED
     let gpioa = dp.GPIOA.split(&mut rcc);
+    let gpiob=dp.GPIOB.split(&mut rcc);
     let mut led = gpioa.pa9.into_push_pull_output();
+    let mut retour: PB5<Alternate<2>> = gpiob.pb5.into_alternate();
     led.set_high().unwrap();
     cortex_m::interrupt::free(|cs| unsafe {
         LED
