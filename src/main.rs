@@ -23,6 +23,12 @@ use stm32g4xx_hal::gpio::gpioa::{PA2, PA3};
 use stm32g4xx_hal::serial::{NoDMA, Serial, usart};
 use stm32g4xx_hal::stm32::{Interrupt, USART2};
 
+use core::cell::RefCell;
+use drs_0x01::{
+    ReadableEEPAddr, ReadableRamAddr, Rotation, Servo, WritableEEPAddr, WritableRamAddr,
+};
+use drs_0x01::Rotation::Clockwise;
+
 #[macro_use]
 mod utils;
 
@@ -123,6 +129,87 @@ fn USART2() {
     }
 }
 
+//Structure to control a motor
+pub struct Motor<'a, Comm: HerkulexCommunication>{
+    communication: &'a RefCell<Comm>,
+    id: u8,
+}
+
+impl<'a, Comm: HerkulexCommunication> Motor<'_, Comm> {
+    /// Create a new servo motor, associated with its ID.
+    /// To move, enable torque.
+    pub fn new(id: u8, communication: &'a RefCell<Comm>) -> Motor<'a, Comm> {
+        Motor {
+            id,
+            communication,
+        }
+    }
+
+    /// Enable torque to allow the servo moving.
+    pub fn enable_torque(&self) {
+        self.communication
+            .borrow_mut()
+            .send_message(Servo::new(self.id).enable_torque());
+    }
+
+    /// Set a position.
+    /// - The value should be between 21 and 1002 to avoid errors.
+    pub fn set_position(&self, position: u16) {
+        self.communication
+            .borrow_mut()
+            .send_message(Servo::new(self.id).set_position(position));
+    }
+
+    pub fn set_speed(&self, speed: u16, rot: Rotation) {
+        self.communication
+            .borrow_mut()
+            .send_message(Servo::new(self.id).set_speed(speed, rot));
+    }
+
+    /// Clear the error register of the servo.
+    pub fn clear_errors(&self) {
+        self.communication
+            .borrow_mut()
+            .send_message(Servo::new(self.id).clear_errors());
+    }
+
+    /// Reboot the motor.
+    /// - Use a delay of 250ms to let the servo reboot.
+    /// - During the reboot all changes applied to the EEP memory will take effect.
+    pub fn reboot(&self) {
+        self.communication
+            .borrow_mut()
+            .send_message(Servo::new(self.id).reboot());
+    }
+
+    /// Get the ID of the servo in its RAM register.
+    pub fn get_id(&self) -> u8 {
+        self.communication
+            .borrow_mut()
+            .send_message(Servo::new(self.id).ram_request(ReadableRamAddr::ID));
+        self.communication.borrow_mut().read_message()[9]
+    }
+}
+
+//Structure to control a group of motors
+pub struct Motors<Comm: HerkulexCommunication> {
+    communication: RefCell<Comm>,
+}
+
+impl<'a, Comm: HerkulexCommunication> Motors<Comm> {
+    /// Create a new group of servomotors.
+    pub fn new(comm: Comm) -> Motors<Comm> {
+        Motors {
+            communication: RefCell::new(comm),
+        }
+    }
+
+    /// Create a new servomotor
+    pub fn new_motor(&self, id: u8) -> Motor<Comm> {
+        Motor::new(id, &self.communication)
+    }
+}
+
 #[entry]
 fn uart() -> ! {
     utils::logger::init();
@@ -148,16 +235,41 @@ fn uart() -> ! {
 
     let mut usart = usart::Serial::usart2(
         dp.USART2,
-        (pin_tx),
-        (pin_rx),
+        pin_tx,
+        pin_rx,
         FullConfig::default(),
         (&mut rcc),
     ).unwrap();
 
+    //Take tx and rx for communication
+    let (mut tx, rx) = usart.split();
+
+    //Create new communication for Herkulex
+    let communication = Communication::new(&mut tx, rx);
+
+    let motors = Motors::new(communication);
+    let motor2 = motors.new_motor(0xFE);
+
+    hprintln!("Reboot motor");
+    motor2.reboot();
+    delay_tim2.delay_ms(1000 as u16);
+
+    hprintln!("Clear errors");
+    motor2.clear_errors();
+
+    hprintln!("Enable torque");
+    motor2.enable_torque();
+
     loop {
         hprintln!("Begin of loop");
-        delay_tim2.delay_ms(1000 as u16);
-        hprintln!("Sent data");
-        usart.write(6).unwrap();
+        hprintln!("Advancing");
+        motor2.set_speed(512, Clockwise);
+        //motor2.set_position(512);
+        delay_tim2.delay_ms(5000 as u16);
+        //hprintln!("Get ID");
+        //let id_motor = motor2.get_id();
+        //hprintln!("%d");
+
+        //tx.write(6).unwrap();
     }
 }
