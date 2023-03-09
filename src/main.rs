@@ -25,8 +25,10 @@ use cortex_m_rt::entry;
 use panic_halt as _;
 
 use cortex_m_semihosting::hprintln;
+use embedded_hal::can::Id;
 use stm32g4xx_hal::fdcan::config::{ClockDivider, DataBitTiming, FdCanConfig, FrameTransmissionConfig, GlobalFilter, Interrupts, TimestampSource};
 use stm32g4xx_hal::fdcan::filter::{Action, Filter, FilterType};
+use stm32g4xx_hal::fdcan::id::Id::Standard;
 
 
 #[macro_use]
@@ -116,7 +118,7 @@ fn main() -> ! {
         can.apply_config(configCAN);
 
         let filtre = StandardFilter {
-            filter: FilterType::DedicatedSingle(StandardId::new(4).unwrap()),
+            filter: FilterType::DedicatedSingle(StandardId::new(0x2).unwrap()),
             action: Action::StoreInFifo0,
         };
 
@@ -136,7 +138,7 @@ fn main() -> ! {
     let mut can = can1;
 
     //hprintln!("Create Message Data");
-    let mut buffer = [0xAAAAAAAA, 0xFFFFFFFF, 0x0, 0x0, 0x0, 0x0];
+    let mut buffer = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0];
     //hprintln!("Create Message Header");
     // let header = TxFrameHeader {
     //     len: 2 * 4,
@@ -153,31 +155,50 @@ fn main() -> ! {
     //     b[..len].clone_from_slice(&buffer[..len]);
     // },))
     //     .unwrap();
-    if let Ok(rxheader) = block!(can.receive0(&mut |h, b| {
+    loop {
+    let mut id = 0;
+    let mut buff_len = 0;
+    if let Ok(rx_header) = block!(can.receive0(&mut |h, b| {
             unsafe {
                 hprintln!("Received ID: {:#X?}", get_can_id_from_buff(&b));
             }
+            id = unsafe { get_can_id_from_buff(&b) };
             hprintln!("received data: {:X?}", &b);
 
             // unsafe {
             //     hprintln!("ID: {}", *((0x4000A400+0x00B0_u32).as_ptr()));
             // }
             // buffer[-2]
+            // buffer_len = 0;
             for (i, d) in b.iter().enumerate() {
                 buffer[i] = *d;
+                // buffer_len += 1;
             }
             h
         })) {
+        const taille: u8 = 1;
+        let id_origin = id & 0xF;
+        let id_destination = (id >> 4) & 0xF;
+        let prio = id >> 8;
+        let new_id = (prio << 8) | (id_origin << 4) | id_destination;
+        let tx_frame_header = TxFrameHeader {
+            len: taille,
+            frame_format: FrameFormat::Standard,
+            id: Standard(StandardId::new(new_id as u16).unwrap()).into(),
+            bit_rate_switching: false,
+            marker: None,
+        };
+        // let mess: [u32; taille as usize] = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0];
         block!(
-                can.transmit(rxheader.unwrap().to_tx_header(None), &mut |b| {
+                can.transmit(tx_frame_header, &mut |b| {
                     let len = b.len();
-                    b[..len].clone_from_slice(&buffer[..len]);
-                    hprintln!("Transmit: {:X?}", b);
+                    b[..len].clone_from_slice(&buffer[..(len)]);
+                    hprintln!("Transmit: ID {:X?}: {:X?}", new_id, b);
                 })
             )
             .unwrap();
     }
 
-    loop {
+
     }
 }
