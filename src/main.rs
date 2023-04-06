@@ -172,10 +172,11 @@ fn main() -> ! {
         };
         if start {
            let mut val1=unsafe{(*stm32g4::stm32g431::TIM3::ptr()).ccr1.read().bits()};
+            unsafe{(*stm32g4::stm32g431::TIM3::ptr()).sr.write( |w|w.cc1if().clear_bit())};
             hprintln!("val1={}",val1);
         };
         hprintln!("distance={}",distance);
-        unsafe{(*stm32g4::stm32g431::TIM3::ptr()).sr.write( |w|w.cc1if().clear_bit())};
+
        if end {
            let mut val2=unsafe{(*stm32g4::stm32g431::TIM3::ptr()).ccr1.read().bits()};
            hprintln!("val2={}",val2);
