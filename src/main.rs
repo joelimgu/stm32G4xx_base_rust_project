@@ -60,8 +60,8 @@ fn TIM2() {
 fn main() -> ! {
     let mut dp = stm32::Peripherals::take().expect("cannot take peripherals");
 
-    dp.RCC.apb2enr.write(|w|unsafe{
-        w.tim1en().bit(true)
+    dp.RCC.apb1enr1.write(|w| unsafe{
+        w.tim3en().set_bit()
     });
 
     let mut rcc = dp.RCC.constrain();
