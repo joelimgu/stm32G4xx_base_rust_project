@@ -13,6 +13,8 @@ use cortex_m::{asm::wfi, interrupt::Mutex};
 use cortex_m_rt::entry;
 use cortex_m_semihosting::{hprint, hprintln};
 use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::timer::CountDown;
+//use embedded_hal::prelude::_embedded_hal_timer_CountDown;
 use stm32g4xx_hal::gpio::gpioa::{PA11, PA5, PA6, PA9};
 use stm32g4xx_hal::gpio::{Alternate, Output, PushPull};
 use stm32g4xx_hal::time::U32Ext;
@@ -32,22 +34,22 @@ static G_LED_ON: AtomicBool = AtomicBool::new(true);
 unsafe fn clear_tim2interrupt_bit() {
     (*stm32g4::stm32g431::TIM2::ptr())
         .sr
-        .write(|w| w.uif().clear_bit());
+        //.write(|w| w.uif().clear_bit());
+        .write(|w| w.uif().bit(false));
 
 }
-static LED: Mutex<RefCell<Option<PA9<Output<PushPull>>>>> = Mutex::new(RefCell::new(None));
+static LED: Mutex<RefCell<Option<PB4<Output<PushPull>>>>> = Mutex::new(RefCell::new(None));
 //interruption pour éteindre la LED
 #[interrupt]
 fn TIM2() {
     cortex_m::interrupt::free(|cs| {
-        let mut option = LED.borrow(&cs).borrow_mut().take();
-        match option {
-            None => {}
+        let mut option = LED.borrow(&cs);
+        match option.borrow_mut().as_mut()  {
+            None => {hprintln!("ERR");}
             Some(mut led) => {
                 led.set_low().unwrap();
             }
         }
-
     });
      unsafe { clear_tim2interrupt_bit() }
 }
@@ -118,15 +120,15 @@ fn main() -> ! {
             .cc1de().bit(true)
     });
 
-    dp.TIM3.cr1.write(|w| unsafe {
-        w.cen().bit(true)
+     dp.TIM3.cr1.write(|w| unsafe {
+         w.cen().bit(true)
     });//activation compteur
 
 
     // Configure PA5 pin to blink LED
-    let gpioa = dp.GPIOA.split(&mut rcc);
+   // let gpioa = dp.GPIOA.split(&mut rcc);
     let gpiob = dp.GPIOB.split(&mut rcc);
-    let mut led = gpioa.pa9.into_push_pull_output();
+    let mut led = gpiob.pb4.into_push_pull_output();
     let mut capture: PB5<Alternate<2>> = gpiob.pb5.into_alternate();
     led.set_high().unwrap();
     cortex_m::interrupt::free(|cs| unsafe {
@@ -136,30 +138,44 @@ fn main() -> ! {
     });
 
     //demarrage du compteur
-    let mut tim2 = Timer::new(dp.TIM2, &rcc.clocks).start_count_down(1.hz());
+    let mut tim2 = Timer::new(dp.TIM2, &rcc.clocks).start_count_down(100.khz());
 
 
     tim2.listen(Event::TimeOut);
     unsafe { NVIC::unmask(Interrupt::TIM2) }
-     let mut rise: bool=true;
-
+    let mut rise:bool =true;
 
     loop {
-        if unsafe{(*stm32g4::stm32g431::TIM3::ptr()).sr.read().cc1if().bits()} && yes
+        if unsafe { (*stm32g4::stm32g431::TIM3::ptr()).sr.read().cc1if().bits() }&&rise
         {
-            unsafe {(*stm32g4::stm32g431::TIM3::ptr()).cnt.write(|w|w.cnt().bits(0))};
-            hprintln!("clear!");
+            unsafe { (*stm32g4::stm32g431::TIM3::ptr()).cnt.reset() };
+            //hprintln!("{}",unsafe{(*stm32g4::stm32g431::TIM3::ptr()).cnt.read().bits()});
             rise=false;
-
         }
-        if unsafe{(*stm32g4::stm32g431::TIM3::ptr()).sr.read().cc1of().bits()}
+        if unsafe { (*stm32g4::stm32g431::TIM3::ptr()).sr.read().cc1of().bits() }
         {
-            let mut distance = unsafe { (*stm32g4::stm32g431::TIM3::ptr()).ccr1.read().bits()};
-            hprintln!("distance={}cm",unsafe{distance/58});
-            unsafe { (*stm32g4::stm32g431::TIM3::ptr()).sr.write(|w| w.cc1of().bit(false))};
-            unsafe { (*stm32g4::stm32g431::TIM3::ptr()).sr.write(|w| w.cc1if().bit(false))};
-            dp.TIM3.cr1.write(|w|unsafe{w.cen().bit(false)});
-        }
+            let mut distance = unsafe { (*stm32g4::stm32g431::TIM3::ptr()).ccr1.read().bits() };
+            //let mut distance = unsafe { (*stm32g4::stm32g431::TIM3::ptr()).cnt.read().bits() };
 
+            unsafe { (*stm32g4::stm32g431::TIM3::ptr()).sr.write(|w| w.cc1of().bit(false)) };
+            unsafe { (*stm32g4::stm32g431::TIM3::ptr()).sr.write(|w| w.cc1if().bit(false)) };
+            //dp.TIM3.cr1.write(|w|unsafe{w.cen().bit(false)});
+            hprintln!("distance={}cm",unsafe{distance/58});
+            rise=true;
+
+            cortex_m::interrupt::free(|cs| {
+                let mut option = LED.borrow(&cs);
+                match option.borrow_mut().as_mut() {
+                    None => { hprintln!("ERR"); }
+                    Some(mut led) => {
+                        led.set_high().unwrap();
+                    }
+                }
+            });
+            tim2.start(100.khz());
+            tim2.listen(Event::TimeOut);
+            //unsafe { NVIC::unmask(Interrupt::TIM2) }
+            //hprintln!("listen");
+        }
     }
 }
