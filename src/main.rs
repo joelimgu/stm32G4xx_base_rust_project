@@ -156,48 +156,50 @@ fn main() -> ! {
     // },))
     //     .unwrap();
     loop {
-    let mut id = 0;
-    let mut buff_len = 0;
-    if let Ok(rx_header) = block!(can.receive0(&mut |h, b| {
-            unsafe {
-                hprintln!("Received ID: {:#X?}", get_can_id_from_buff(&b));
-            }
-            id = unsafe { get_can_id_from_buff(&b) };
-            hprintln!("received data: {:X?}", &b);
+        hprintln!("loop").ok();
+        let mut id = 0;
+        let mut buff_len = 0;
+        if let Ok(rx_header) = (can.receive0(&mut |h, b| {
+                unsafe {
+                    hprintln!("Received ID: {:#X?}", get_can_id_from_buff(&b));
+                }
+                id = unsafe { get_can_id_from_buff(&b) };
+                hprintln!("received data: {:X?}", &b);
 
-            // unsafe {
-            //     hprintln!("ID: {}", *((0x4000A400+0x00B0_u32).as_ptr()));
-            // }
-            // buffer[-2]
-            // buffer_len = 0;
-            for (i, d) in b.iter().enumerate() {
-                buffer[i] = *d;
-                // buffer_len += 1;
-            }
-            h
-        })) {
-        const taille: u8 = 1;
-        let id_origin = id & 0xF;
-        let id_destination = (id >> 4) & 0xF;
-        let prio = id >> 8;
-        let new_id = (prio << 8) | (id_origin << 4) | id_destination;
-        let tx_frame_header = TxFrameHeader {
-            len: taille,
-            frame_format: FrameFormat::Standard,
-            id: Standard(StandardId::new(new_id as u16).unwrap()).into(),
-            bit_rate_switching: false,
-            marker: None,
-        };
-        // let mess: [u32; taille as usize] = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0];
-        block!(
-                can.transmit(tx_frame_header, &mut |b| {
+                // unsafe {
+                //     hprintln!("ID: {}", *((0x4000A400+0x00B0_u32).as_ptr()));
+                // }
+                // buffer[-2]
+                // buffer_len = 0;
+                for (i, d) in b.iter().enumerate() {
+                    buffer[i] = *d;
+                    // buffer_len += 1;
+                }
+                h
+            })) {
+            const taille: u8 = 1;
+            let id_origin = id & 0xF;
+            let id_destination = (id >> 4) & 0xF;
+            let prio = id >> 8;
+            let new_id = (prio << 8) | (id_origin << 4) | id_destination;
+            let tx_frame_header = TxFrameHeader {
+                len: taille,
+                frame_format: FrameFormat::Standard,
+                id: Standard(StandardId::new(new_id as u16).unwrap()).into(),
+                bit_rate_switching: false,
+                marker: None,
+            };
+            // let mess: [u32; taille as usize] = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0];
+            if can.is_transmitter_idle() {
+                if let Err(e) = can.transmit(tx_frame_header, &mut |b| {
                     let len = b.len();
                     b[..len].clone_from_slice(&buffer[..(len)]);
                     hprintln!("Transmit: ID {:X?}: {:X?}", new_id, b);
-                })
-            )
-            .unwrap();
-    }
+                }) {
+                    hprintln!("err transmit").ok();
+                }
+            }
+        }
 
 
     }
